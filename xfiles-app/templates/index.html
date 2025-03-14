@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X-Files Database</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">The Truth is Out There</h1>
+        <p class="subtitle">Explore classified cases and unexplained mysteries</p>
+        
+        <button id="fetchTruth">Reveal the Truth</button>
+        <div id="truthMessage" class="message"></div>
+
+        <button id="fetchCases">View Cases</button>
+        <div id="casesContainer"></div>
+    </div>
+
+    <script>
+        document.getElementById("fetchTruth").addEventListener("click", async () => {
+            try {
+                const response = await fetch("/api/truth");
+                if (!response.ok) throw new Error("Failed to fetch truth message");
+                const data = await response.json();
+                document.getElementById("truthMessage").textContent = data.message;
+            } catch (error) {
+                console.error("Error fetching truth message:", error);
+                document.getElementById("truthMessage").textContent = "Error retrieving truth message.";
+            }
+        });
+
+        document.getElementById("fetchCases").addEventListener("click", async () => {
+            try {
+                const response = await fetch("/api/cases");
+                if (!response.ok) throw new Error("Failed to fetch cases");
+                const data = await response.json();
+
+                if (!Array.isArray(data.cases)) throw new Error("Invalid cases format received");
+
+                const container = document.getElementById("casesContainer");
+                container.innerHTML = "";
+
+                data.cases.forEach(c => {
+                    const caseDiv = document.createElement("div");
+                    caseDiv.classList.add("case");
+                    caseDiv.innerHTML = `<h3>${c.title}</h3><p>${c.description}</p>`;
+                    container.appendChild(caseDiv);
+                });
+            } catch (error) {
+                console.error("Error fetching cases:", error);
+                document.getElementById("casesContainer").innerHTML = "<p class='error'>Unable to load cases. Please try again later.</p>";
+            }
+        });
+    </script>
+</body>
+</html>
