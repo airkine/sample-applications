@@ -166,7 +166,7 @@ jobs:
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Release: ${{ steps.get_tag.outputs.new_tag }}
+      - name: "Release: ${{ steps.get_tag.outputs.new_tag }}"
         uses: softprops/action-gh-release@v2
         with:
           name: Release.${{ steps.get_tag.outputs.new_tag }}
