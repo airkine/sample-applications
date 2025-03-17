@@ -64,10 +64,10 @@ jobs:
 
       - name: Build Docker images
         run: |
-          for dockerfile in $(find ./docker -name "*.Dockerfile"); do
+          for dockerfile in $(find . -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
             echo "Building image: $image_name"
-            docker build . --file "$dockerfile" --tag ${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag != '' && steps.next_tag.outputs.new_tag || '0.1.0' }}
+            docker build . --file "$dockerfile" --tag ${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
           done
         env:
           BUILD_VERSION: ${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
