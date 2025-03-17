@@ -30,7 +30,6 @@ on:
         required: true
         default: 'prerelease'
 
-
 jobs:
   build:
     timeout-minutes: 60
@@ -38,7 +37,7 @@ jobs:
     permissions:
       actions: read
       packages: write
-      contents: read
+      contents: write
       id-token: write
       attestations: write
     outputs:
@@ -57,16 +56,21 @@ jobs:
           DEFAULT_BUMP: ${{ github.event.inputs.default_bump }}
           RELEASE_BRANCHES: ${{ github.event.inputs.release_branches }}
           PRERELEASE_SUFFIX: ${{ github.event.inputs.prerelease_suffix }}
+        continue-on-error: true  # Allow the step to fail without failing the job
+
+      - name: Set initial tag if none exists
+        if: steps.next_tag.outputs.new_tag == ''
+        run: echo "::set-output name=new_tag::0.1.0"
 
       - name: Build Docker images
         run: |
           for dockerfile in $(find ./docker -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
             echo "Building image: $image_name"
-            docker build . --file "$dockerfile" --tag ${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag != '' && steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}
+            docker build . --file "$dockerfile" --tag ${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag != '' && steps.next_tag.outputs.new_tag || '0.1.0' }}
           done
         env:
-          BUILD_VERSION: ${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}
+          BUILD_VERSION: ${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
 
       - name: Log in to registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -74,11 +78,10 @@ jobs:
       - name: Push version tagged Docker images to Github packages
         id: push
         run: |
-          find . -name "*.Dockerfile" -exec sh -c 'docker tag ${{ github.repository_owner }}/$(basename {} .Dockerfile):${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }} ghcr.io/${{ github.repository_owner }}/$(basename {} .Dockerfile):${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}' sh {} \;
-          find . -name "*.Dockerfile" -exec sh -c 'docker push ghcr.io/${{ github.repository_owner }}/$(basename {} .Dockerfile):${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}' sh {} \;
+          find . -name "*.Dockerfile" -exec sh -c 'docker tag ${{ github.repository_owner }}/$(basename {} .Dockerfile):${{ steps.next_tag.outputs.new_tag || '0.1.0' }}' \;
+          find . -name "*.Dockerfile" -exec sh -c 'docker push ghcr.io/${{ github.repository_owner }}/$(basename {} .Dockerfile):${{ steps.next_tag.outputs.new_tag || '0.1.0' }}' \;
 
       - name: Install Cosign
-        # Using Cosign v2.4.3 as it is a stable release with features required for signing and attestation.
         uses: sigstore/cosign-installer@v3.8.1
         with:
           cosign-release: 'v2.4.3'
@@ -93,15 +96,15 @@ jobs:
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
-            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}"
+            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}"
             echo "Signing image: $image_tag"
             image_digest=$(docker inspect --format='{{index .RepoDigests 0}}' $image_tag)
             echo "Image digest: $image_digest"
-            cosign sign --yes --key cosign.key $image_digest -a "repository=${{ github.repository }}" -a "tag=${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}" -a "commit=${{ github.sha }}" -a "author=${{ github.actor }}" -a "email=${{ github.actor }}@outlook.com" -a "workflow=${{ github.workflow }}"
+            cosign sign --yes --key cosign.key $image_digest -a "repository=${{ github.repository }}" -a "tag=${{ steps.next_tag.outputs.new_tag || '0.1.0' }}" -a "commit=${{ github.sha }}"
           done
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          BUILD_VERSION: ${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}
+          BUILD_VERSION: ${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
 
       - name: Install Syft
         run: |
@@ -111,7 +114,7 @@ jobs:
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
-            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}"
+            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}"
             echo "Generating SBOM for image: $image_tag"
             syft $image_tag -o ${{ github.event.inputs.sbom_format }} > $image_name-sbom.${{ github.event.inputs.sbom_format }}
           done
@@ -130,13 +133,13 @@ jobs:
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
-            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}"
+            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}"
             echo "Attaching SBOM to image: $image_tag"
             cosign attest --predicate $image_name-sbom.json --key ${{ secrets.COSIGN_PRIVATE_KEY }} $image_tag
           done
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-                
+
   create-release:
     needs: [build]
     timeout-minutes: 20
@@ -173,5 +176,3 @@ jobs:
           body: ${{ steps.create_changelogs.outputs.changelog }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
