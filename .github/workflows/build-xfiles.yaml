@@ -162,11 +162,27 @@ jobs:
           PRERELEASE_SUFFIX: ${{ github.event.inputs.prerelease_suffix }}
           DRY_RUN: true
 
+      - name: Check for existing tags
+        id: check_tags
+        run: |
+          if [ -z "$(git tag)" ]; then
+            echo "No tags found"
+            echo "has_tags=false" >> $GITHUB_ENV
+          else
+            echo "Tags found"
+            echo "has_tags=true" >> $GITHUB_ENV
+          fi
+
       - name: Create Changelogs
         id: create_changelogs
+        if: env.has_tags == 'true'
         uses: metcalfc/changelog-generator@v4.3.1
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Handle missing changelog
+        if: env.has_tags == 'false'
+        run: echo "No changelog generated as this is a new repository."
 
       - name: "Release: ${{ steps.get_tag.outputs.new_tag }}"
         uses: softprops/action-gh-release@v2
