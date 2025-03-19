@@ -1,0 +1,128 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '*.Dockerfile'
+
+  workflow_dispatch:
+    inputs:
+      create_changelogs:
+        description: 'Create changelogs'
+        required: true
+        default: 'true'
+      sbom_format:
+        description: 'SBOM output format (e.g., json, spdx)'
+        required: false
+        default: 'json'
+      default_bump:
+        description: 'Default bump type'
+        required: true
+        default: 'patch'
+      release_branches:
+        description: 'Release branches'
+        required: true
+        default: 'main'
+      prerelease_suffix:
+        description: 'Prerelease suffix'
+        required: true
+        default: 'prerelease'
+
+jobs:
+  build:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      packages: write
+      contents: write
+      id-token: write
+      attestations: write
+    outputs:
+      new_tag: ${{ steps.next_tag.outputs.new_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Determine next tag
+        id: next_tag
+        uses: anothrNick/github-tag-action@1.71.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BUMP: ${{ github.event.inputs.default_bump }}
+          RELEASE_BRANCHES: ${{ github.event.inputs.release_branches }}
+          PRERELEASE_SUFFIX: ${{ github.event.inputs.prerelease_suffix }}
+        continue-on-error: true
+
+      - name: Build Docker images
+        run: |
+          for dockerfile in $(find . -name "*.Dockerfile"); do
+            image_name=$(basename "$dockerfile" .Dockerfile)
+            docker build . -f "$dockerfile" -t ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
+          done
+
+      - name: Log in to registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Docker images
+        run: |
+          for dockerfile in $(find . -name "*.Dockerfile"); do
+            image_name=$(basename "$dockerfile" .Dockerfile)
+            docker push ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
+          done
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.8.1
+
+      - name: Sign Docker images
+        run: |
+          echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
+          for dockerfile in $(find . -name "*.Dockerfile"); do
+            image_name=$(basename "$dockerfile" .Dockerfile)
+            cosign sign --yes --key cosign.key ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
+          done
+
+      - name: Generate SBOM
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          for dockerfile in $(find . -name "*.Dockerfile"); do
+            image_name=$(basename "$dockerfile" .Dockerfile)
+            syft ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }} -o ${{ github.event.inputs.sbom_format }} > $image_name-sbom.${{ github.event.inputs.sbom_format }}
+          done
+
+      - name: Attach SBOM to images
+        run: |
+          for dockerfile in $(find . -name "*.Dockerfile"); do
+            image_name=$(basename "$dockerfile" .Dockerfile)
+            cosign attest --predicate $image_name-sbom.${{ github.event.inputs.sbom_format }} --key cosign.key ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
+          done
+
+  create-release:
+    needs: [build]
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        uses: metcalfc/changelog-generator@v4.3.1
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ needs.build.outputs.new_tag }}
+          tag_name: ${{ needs.build.outputs.new_tag }}
+          body_path: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
