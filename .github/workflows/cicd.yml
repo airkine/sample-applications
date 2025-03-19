@@ -105,25 +105,10 @@ jobs:
 
       - name: Attach SBOM to images
         run: |
-            echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
-            for dockerfile in $(find . -name "*.Dockerfile"); do
-              image_name=$(basename "$dockerfile" .Dockerfile)
-              image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}"
-              image_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$image_tag")
-        
-              # Ensure we use the correct syntax
-              cosign attest --yes --key cosign.key \
-                --predicate "$image_name-sbom.${{ github.event.inputs.sbom_format }}" \
-                "$image_digest" \
-                --annotation repository="${{ github.repository }}" \
-                --annotation repository_url="https://github.com/${{ github.repository }}" \
-                --annotation commit="${{ github.sha }}" \
-                --annotation branch="${{ github.ref }}" \
-                --annotation tag="${{ github.ref_name }}" \
-                --annotation build_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-                --annotation workflow="${{ github.workflow }}" \
-                --annotation runner_environment="${{ runner.os }}"
-            done
+          for dockerfile in $(find . -name "*.Dockerfile"); do
+            image_name=$(basename "$dockerfile" .Dockerfile)
+            cosign attest --yes --predicate $image_name-sbom.${{ github.event.inputs.sbom_format }} --key cosign.key ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}  -a "repository=${{ github.repository }}" -a "tag=${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}" -a "commit=${{ github.sha }}" -a "author=${{ github.actor }}" -a "email=${{ github.actor }}@outlook.com" -a "workflow=${{ github.workflow }}"
+          done
         
 
   create-release:
