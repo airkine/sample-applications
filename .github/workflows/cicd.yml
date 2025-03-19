@@ -64,8 +64,12 @@ jobs:
       - name: Build Docker images
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
+            # Get the directory containing the Dockerfile
+            context_dir=$(dirname "$dockerfile")
+            # Extract the image name from the Dockerfile name
             image_name=$(basename "$dockerfile" .Dockerfile)
-            docker build . -f "$dockerfile" \
+            # Build the Docker image using the correct context
+            docker build "$context_dir" -f "$dockerfile" \
               -t ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
           done
       
