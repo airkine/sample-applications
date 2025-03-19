@@ -58,6 +58,9 @@ jobs:
           PRERELEASE_SUFFIX: ${{ github.event.inputs.prerelease_suffix }}
         continue-on-error: true
 
+      - name: List Dockerfiles
+        run: find . -name "*.Dockerfile"
+
       - name: Build Docker images
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
@@ -113,10 +116,33 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check if repository has tags
+        id: check_tags
+        run: |
+          if [ "$(git tag)" = "" ]; then
+            echo "has_tags=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_tags=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate changelog
+        if: steps.check_tags.outputs.has_tags == 'true'
         uses: metcalfc/changelog-generator@v4.3.1
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create fallback CHANGELOG.md if no tags exist
+        if: steps.check_tags.outputs.has_tags != 'true'
+        run: |
+          echo "## Initial Release" > CHANGELOG.md
+          echo "No previous releases available for changelog generation." >> CHANGELOG.md
+
+      - name: Verify CHANGELOG.md exists
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "CHANGELOG.md not found, creating default."
+            echo "## Release Notes" > CHANGELOG.md
+            echo "No significant changes." >> CHANGELOG.md
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
