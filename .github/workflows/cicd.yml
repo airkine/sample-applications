@@ -107,7 +107,7 @@ jobs:
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
-            cosign attest --predicate $image_name-sbom.${{ github.event.inputs.sbom_format }} --key cosign.key ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
+            cosign attest --yes --predicate $image_name-sbom.${{ github.event.inputs.sbom_format }} --key cosign.key ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
           done
 
   create-release:
