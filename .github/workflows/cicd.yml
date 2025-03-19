@@ -76,24 +76,24 @@ jobs:
       - name: Log in to registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       
-      - name: Push Docker images
+      - name: Push Docker images and retrieve digests
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
             docker push ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
+            digest=$(docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }})
+            echo "$digest" >> digests.txt
           done
-      
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
 
-      - name: Sign Docker images
+      - name: Sign Docker images using digests
         run: |
           echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
-          for dockerfile in $(find . -name "*.Dockerfile"); do
-            image_name=$(basename "$dockerfile" .Dockerfile)
-            cosign sign --yes --key cosign.key ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
-          done
+          while IFS= read -r digest; do
+            cosign sign --yes --key cosign.key "$digest"
+          done < digests.txt
 
       - name: Generate SBOM
         run: |
@@ -149,7 +149,6 @@ jobs:
             echo "CHANGELOG.md not found, creating default."
             echo "## Release Notes" > CHANGELOG.md
             echo "No significant changes." >> CHANGELOG.md
-          fi
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
