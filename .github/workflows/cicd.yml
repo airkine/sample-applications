@@ -143,6 +143,7 @@ jobs:
             echo "CHANGELOG.md not found, creating default."
             echo "## Release Notes" > CHANGELOG.md
             echo "No significant changes." >> CHANGELOG.md
+          fi
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
