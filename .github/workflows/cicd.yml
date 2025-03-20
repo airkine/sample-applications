@@ -101,18 +101,19 @@ jobs:
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
-            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}"
-            echo "Signing image: $image_tag"
+            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}"
             image_digest=$(docker inspect --format='{{index .RepoDigests 0}}' $image_tag)
             echo "Image digest: $image_digest"
-            cosign sign --yes --key cosign.key $image_digest -a "repository=${{ github.repository }}" -a "tag=${{ steps.next_tag.outputs.new_tag || github.event.inputs.create_changelogs }}" -a "commit=${{ github.sha }}" -a "author=${{ github.actor }}" -a "email=${{ github.actor }}@outlook.com" -a "workflow=${{ github.workflow }}"
+            cosign sign --yes --key cosign.key $image_digest -a "repository=${{ github.repository }}" -a "tag=${{ steps.next_tag.outputs.new_tag || '0.1.0' }}" -a "commit=${{ github.sha }}" -a "author=${{ github.actor }}" -a "email=${{ github.actor }}@outlook.com" -a "workflow=${{ github.workflow }}"
           done
 
       - name: Attach SBOM to images
         run: |
           for dockerfile in $(find . -name "*.Dockerfile"); do
             image_name=$(basename "$dockerfile" .Dockerfile)
-            cosign attest --yes --predicate $image_name-sbom.${{ github.event.inputs.sbom_format }} --key cosign.key ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}
+            image_tag="ghcr.io/${{ github.repository_owner }}/$image_name:${{ steps.next_tag.outputs.new_tag || '0.1.0' }}"
+            image_digest=$(docker inspect --format='{{index .RepoDigests 0}}' $image_tag)
+            cosign attest --yes --predicate $image_name-sbom.${{ github.event.inputs.sbom_format }} --key cosign.key $image_digest
           done
         
 
