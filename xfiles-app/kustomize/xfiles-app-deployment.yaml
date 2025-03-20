@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xfiles-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: xfiles-app  # ✅ Must match the service
+  template:
+    metadata:
+      labels:
+        app: xfiles-app  # ✅ Ensure this matches
+    spec:
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:15
+        command: ["sh", "-c", "until pg_isready -h postgres -p 5432 -U admin; do echo waiting for database; sleep 2; done;"]
+      containers:
+          - name: xfiles-app
+            image: ghcr.io/airkine/xfiles:0.0.13
+            ports:
+            - containerPort: 8080
+            env:
+            - name: DATABASE_URL
+              value: "postgres://admin:secret@postgres:5432/xfiles?sslmode=disable"
+            resources:
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+              requests:
+                memory: "256Mi"
+                cpu: "250m"

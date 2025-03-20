@@ -30,49 +30,44 @@ func getCases(pool *pgxpool.Pool) ([]Case, error) {
 		}
 		cases = append(cases, c)
 	}
-
 	return cases, nil
 }
 
-func connectDB() (*pgxpool.Pool, error) {
-	connString := os.Getenv("DATABASE_URL")
-	pool, err := pgxpool.Connect(context.Background(), connString)
-	if err != nil {
-		return nil, err
-	}
-	return pool, nil
-}
-
 func main() {
-	pool, err := connectDB()
-	if err != nil {
-		log.Fatalf("Database connection error: %v", err)
-	}
-	defer pool.Close()
+	router := gin.Default()
 
-	r := gin.Default()
+	// ✅ Serve static files
+	router.Static("/static", "./static")
 
-	// Define Static and Templates ONCE only
-	r.Static("/static", "./static")
-	r.LoadHTMLGlob("templates/*.html")
+	// ✅ Load HTML templates from ./templates directory
+	router.LoadHTMLGlob("templates/*")
 
-	r.GET("/api/truth", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "The truth is out there..."})
+	// ✅ Serve the HTML page at "/"
+	router.GET("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", nil)
 	})
 
-	r.GET("/api/cases", func(c *gin.Context) {
+	// ✅ API returns JSON for cases
+	router.GET("/api/cases", func(c *gin.Context) {
+		dbURL := os.Getenv("DATABASE_URL")
+		pool, err := pgxpool.Connect(context.Background(), dbURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer pool.Close()
+
 		cases, err := getCases(pool)
 		if err != nil {
-			log.Printf("Error retrieving cases: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch cases"})
 			return
 		}
+
 		c.JSON(http.StatusOK, gin.H{"cases": cases})
 	})
 
-	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{"title": "X-Files Database"})
-	})
-
-	r.Run(":8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	router.Run(":" + port)
 }

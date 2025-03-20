@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: xfiles-frontend-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: xfiles.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: xfiles-app-service  # ✅ Now routes "/" to backend
+            port:
+              number: 8080
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: xfiles-app-service
+            port:
+              number: 8080

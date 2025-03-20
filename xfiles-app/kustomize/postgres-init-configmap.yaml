@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+type: Opaque
+data:
+  POSTGRES_PASSWORD: c2VjcmV0  # "secret" base64 encoded
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+data:
+  init.sql: |
+    CREATE TABLE cases (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL
+    );
+
+    INSERT INTO cases (title, description) VALUES
+    ('Pilot', 'Agents Mulder and Scully investigate the abduction of a young girl.'),
+    ('Deep Throat', 'Mulder and Scully investigate a military cover-up.'),
+    ('Squeeze', 'A mutant killer who can squeeze through tight spaces.'),
+    ('Conduit', 'A boy is linked to a UFO encounter.'),
+    ('The Jersey Devil', 'A creature in the New Jersey woods.'),
+    ('Shadows', 'A ghostly presence protects a young woman.'),
+    ('Ghost in the Machine', 'A computer with a mind of its own.'),
+    ('Ice', 'A parasitic organism is discovered in the Arctic.'),
+    ('Space', 'A NASA mission is sabotaged by an alien entity.'),
+    ('Fallen Angel', 'A UFO crash leads to a government cover-up.'),
+    ('Eve', 'Clones with extraordinary abilities.'),
+    ('Fire', 'A pyrokinetic arsonist.'),
+    ('Beyond the Sea', 'A death row inmate with psychic abilities.'),
+    ('Gender Bender', 'A religious sect with the ability to change gender.'),
+    ('Lazarus', 'An agent is possessed by a criminal''s spirit.'),
+    ('Young at Heart', 'A criminal who has found the secret to eternal youth.'),
+    ('E.B.E.', 'A government conspiracy involving an extraterrestrial biological entity.'),
+    ('Miracle Man', 'A faith healer with a deadly touch.'),
+    ('Shapes', 'A Native American legend comes to life.'),
+    ('Darkness Falls', 'Deadly insects are unleashed in a forest.'),
+    ('Tooms', 'The return of the mutant killer.'),
+    ('Born Again', 'A young girl with memories of a murdered detective.'),
+    ('Roland', 'A janitor with a genius IQ.'),
+    ('The Erlenmeyer Flask', 'A government conspiracy involving alien DNA.'),
+    ('Roswell Incident', 'A UFO crash in Roswell, NM, in 1947 sparked alien rumors.'),
+    ('Area 51', 'A secretive U.S. Air Force base linked to alien technology.'),
+    ('Black Oil Conspiracy', 'A parasitic alien substance used for mind control.'),
+    ('The Smoking Man', 'A government official involved in extraterrestrial cover-ups.'),
+    ('Project Blue Book', 'A government investigation into UFO sightings.');
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+data:
+  POSTGRES_DB: xfiles
+  POSTGRES_USER: admin
